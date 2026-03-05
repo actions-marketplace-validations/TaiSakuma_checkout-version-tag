@@ -22,6 +22,10 @@ inputs:
     description: Number of commits to fetch
     required: false
     default: "1"
+  skip-checkout:
+    description: Skip the checkout step (useful for testing)
+    required: false
+    default: "false"
 
 outputs:
   release-tag:
@@ -51,6 +55,7 @@ runs:
         RELEASE_PREFIX: ${{ inputs.release-tag-prefix }}
 
     - name: Checkout
+      if: inputs.skip-checkout != 'true'
       uses: actions/checkout@v6
       with:
         ref: ${{ steps.derive.outputs.release-tag }}

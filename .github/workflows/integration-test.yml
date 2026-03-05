@@ -1,0 +1,48 @@
+name: Run integration tests
+# Integration tests that exercise the full action (derive + checkout).
+# Each job first checks out this repo to make the local action.yml available,
+# then runs it with `uses: ./`. The action's own checkout step fetches a ref
+# from this repo's remote (i.e., tags pushed to this repository on GitHub),
+# not from the local copy.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Derive and checkout an existing tag (v1.0.0 must exist on the remote).
+  test-happy-path:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        id: result
+        with:
+          trigger-tag: u1.0.0
+
+      - name: Assert outputs
+        run: |
+          [ "${{ steps.result.outputs.release-tag }}" = "v1.0.0" ]
+          [ "${{ steps.result.outputs.version }}" = "1.0.0" ]
+
+  # Derive succeeds but checkout fails because the tag doesn't exist.
+  # The outputs should still be set by the derive step.
+  test-nonexistent-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        id: should-fail
+        continue-on-error: true
+        with:
+          trigger-tag: u0.0.0-nonexistent
+
+      - name: Assert failure and outputs
+        run: |
+          [ "${{ steps.should-fail.outcome }}" = "failure" ]
+          [ "${{ steps.should-fail.outputs.release-tag }}" = "v0.0.0-nonexistent" ]
+          [ "${{ steps.should-fail.outputs.version }}" = "0.0.0-nonexistent" ]

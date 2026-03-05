@@ -1,0 +1,87 @@
+name: Run unit tests
+# Unit tests for the derive logic only. The checkout step is skipped
+# (skip-checkout: true) so tests can run with arbitrary inputs without
+# needing real tags on the remote.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Verify correct release-tag and version outputs for various prefix combinations.
+  test-derive:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - trigger-tag: u1.2.3
+            trigger-tag-prefix: u
+            release-tag-prefix: v
+            expected-release-tag: v1.2.3
+            expected-version: "1.2.3"
+
+          - trigger-tag: u0.1.0
+            trigger-tag-prefix: u
+            release-tag-prefix: v
+            expected-release-tag: v0.1.0
+            expected-version: "0.1.0"
+
+          - trigger-tag: release-2.0.0
+            trigger-tag-prefix: release-
+            release-tag-prefix: v
+            expected-release-tag: v2.0.0
+            expected-version: "2.0.0"
+
+          - trigger-tag: dev-3.0.0
+            trigger-tag-prefix: dev-
+            release-tag-prefix: release-
+            expected-release-tag: release-3.0.0
+            expected-version: "3.0.0"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        id: result
+        with:
+          trigger-tag: ${{ matrix.trigger-tag }}
+          trigger-tag-prefix: ${{ matrix.trigger-tag-prefix }}
+          release-tag-prefix: ${{ matrix.release-tag-prefix }}
+          skip-checkout: true
+
+      - name: Assert outputs
+        run: |
+          [ "${{ steps.result.outputs.release-tag }}" = "${{ matrix.expected-release-tag }}" ]
+          [ "${{ steps.result.outputs.version }}" = "${{ matrix.expected-version }}" ]
+
+  # Verify the action fails when trigger-tag doesn't match trigger-tag-prefix.
+  test-invalid-prefix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - trigger-tag: x1.0.0
+            trigger-tag-prefix: u
+
+          - trigger-tag: v1.0.0
+            trigger-tag-prefix: u
+
+          - trigger-tag: u1.0.0
+            trigger-tag-prefix: release-
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./
+        id: should-fail
+        continue-on-error: true
+        with:
+          trigger-tag: ${{ matrix.trigger-tag }}
+          trigger-tag-prefix: ${{ matrix.trigger-tag-prefix }}
+          skip-checkout: true
+
+      - name: Assert failure
+        run: |
+          [ "${{ steps.should-fail.outcome }}" = "failure" ]
